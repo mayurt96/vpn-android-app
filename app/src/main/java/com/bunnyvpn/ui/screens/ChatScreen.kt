@@ -57,30 +57,37 @@ fun ChatScreen() {
 
         scope.launch(Dispatchers.IO) {
             try {
-                val apiKey = "YOUR_CLAUDE_API_KEY_HERE" // Replace with your key
+                val apiKey = "AIzaSyCoRWTlqts3Mw6Arfmj8NS7GaUNNBm0fKc"
 
-                // Build messages array
-                val messagesJson = JSONArray()
-                messages.forEach { msg ->
-                    messagesJson.put(JSONObject().apply {
-                        put("role", msg.role)
-                        put("content", msg.content)
-                    })
+                // Build Gemini body - Filter out previous error messages to avoid confusing the API
+                val contents = JSONArray()
+                messages.filter { !it.content.startsWith("API Error:") && !it.content.startsWith("Network Error:") }
+                    .forEach { msg ->
+                        val contentObj = JSONObject()
+                        // User role is "user", assistant role is "model" in Gemini API
+                        contentObj.put("role", if (msg.role == "user") "user" else "model")
+                        val parts = JSONArray()
+                        parts.put(JSONObject().put("text", msg.content))
+                        contentObj.put("parts", parts)
+                        contents.put(contentObj)
+                    }
+
+                // If contents is empty (e.g. all were errors), don't send
+                if (contents.length() == 0) {
+                    withContext(Dispatchers.Main) { isLoading = false }
+                    return@launch
                 }
 
                 val body = JSONObject().apply {
-                    put("model", "claude-3-5-sonnet-20240620")
-                    put("max_tokens", 1024)
-                    put("messages", messagesJson)
+                    put("contents", contents)
                 }.toString()
 
-                val url = URL("https://api.anthropic.com/v1/messages")
+                // Try gemini-1.5-flash with v1beta
+                val url = URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey")
                 val conn = url.openConnection() as HttpURLConnection
                 conn.apply {
                     requestMethod = "POST"
                     setRequestProperty("Content-Type", "application/json")
-                    setRequestProperty("x-api-key", apiKey)
-                    setRequestProperty("anthropic-version", "2023-06-01")
                     doOutput = true
                     connectTimeout = 30000
                     readTimeout = 30000
@@ -88,28 +95,42 @@ fun ChatScreen() {
 
                 OutputStreamWriter(conn.outputStream).use { it.write(body) }
 
-                val response = if (conn.responseCode == 200) {
-                    conn.inputStream.bufferedReader().readText()
+                val responseCode = conn.responseCode
+                val response = if (responseCode == 200) {
+                    conn.inputStream.bufferedReader().use { it.readText() }
                 } else {
-                    conn.errorStream?.bufferedReader()?.readText() ?: "Error: ${conn.responseCode}"
-                }
-                
-                val json = JSONObject(response)
-                val reply = if (json.has("content")) {
-                    json.getJSONArray("content")
-                        .getJSONObject(0)
-                        .getString("text")
-                } else {
-                    json.optJSONObject("error")?.optString("message") ?: "Unknown error"
+                    conn.errorStream?.bufferedReader()?.use { it.readText() } ?: "Error code: $responseCode"
                 }
 
-                withContext(Dispatchers.Main) {
-                    messages.add(ChatMessage("assistant", reply))
-                    isLoading = false
+                if (responseCode == 200) {
+                    val json = JSONObject(response)
+                    val reply = json.getJSONArray("candidates")
+                        .getJSONObject(0)
+                        .getJSONObject("content")
+                        .getJSONArray("parts")
+                        .getJSONObject(0)
+                        .getString("text")
+
+                    withContext(Dispatchers.Main) {
+                        messages.add(ChatMessage("assistant", reply))
+                        isLoading = false
+                    }
+                } else {
+                    // Try to parse error message from JSON if possible
+                    val errorMsg = try {
+                        val errJson = JSONObject(response)
+                        errJson.optJSONObject("error")?.optString("message") ?: response
+                    } catch (e: Exception) {
+                        response
+                    }
+                    withContext(Dispatchers.Main) {
+                        messages.add(ChatMessage("assistant", "API Error: $errorMsg"))
+                        isLoading = false
+                    }
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    messages.add(ChatMessage("assistant", "Error: ${e.message}"))
+                    messages.add(ChatMessage("assistant", "Network Error: ${e.localizedMessage ?: "Unknown error"}"))
                     isLoading = false
                 }
             }
@@ -146,7 +167,7 @@ fun ChatScreen() {
                     Column {
                         Text("BunnyAI", fontWeight = FontWeight.Bold,
                             color = TextPrimary, fontSize = 16.sp)
-                        Text("Powered by Claude", color = TextSecondary, fontSize = 11.sp)
+                        Text("Powered by Gemini", color = TextSecondary, fontSize = 11.sp)
                     }
 
                     Spacer(Modifier.weight(1f))
@@ -193,7 +214,7 @@ fun ChatScreen() {
                                     brush = Brush.horizontalGradient(listOf(Cyan400, Purple400))
                                 )
                             )
-                            Text("Powered by Claude AI", color = TextSecondary, fontSize = 13.sp)
+                            Text("Powered by Gemini AI", color = TextSecondary, fontSize = 13.sp)
 
                             Spacer(Modifier.height(8.dp))
 
@@ -205,7 +226,9 @@ fun ChatScreen() {
                                         .border(1.dp, GlassBorder, RoundedCornerShape(20.dp))
                                         .padding(horizontal = 16.dp, vertical = 8.dp)
                                         .clickable { 
-                                            input = hint.substring(2)
+                                            // Extract text safely after emoji/space
+                                            val hintText = hint.split(" ", limit = 2).lastOrNull() ?: hint
+                                            input = hintText
                                             sendMessage()
                                         }
                                 ) {
