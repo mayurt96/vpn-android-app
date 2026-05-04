@@ -53,29 +53,13 @@ fun NeonButton(
     isLoading: Boolean = false,
     enabled: Boolean = true
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "neon_btn")
-    val scale by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.03f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = EaseInOut),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "btn_scale"
-    )
-
-    val interactionScale by animateFloatAsState(
-        targetValue = if (enabled) 1f else 0.95f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-        label = "press_scale"
-    )
-
+    // Simplified button for better performance in emulator
     Box(
         modifier = modifier
-            .scale(if (enabled) scale * interactionScale else 1f)
             .clip(RoundedCornerShape(50))
             .background(
-                Brush.horizontalGradient(listOf(Cyan400, Purple400))
+                if (enabled) Brush.horizontalGradient(listOf(Cyan400, Purple400))
+                else Brush.linearGradient(listOf(Color.Gray, Color.DarkGray))
             )
             .clickable(enabled = enabled && !isLoading) { onClick() }
             .padding(horizontal = 32.dp, vertical = 14.dp),
@@ -186,33 +170,17 @@ fun SectionHeader(title: String, modifier: Modifier = Modifier) {
 // ---- Animated Gradient Background ----
 @Composable
 fun AnimatedGradientBackground(modifier: Modifier = Modifier) {
-    val infiniteTransition = rememberInfiniteTransition(label = "bg_grad")
-    val offset by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(6000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "grad_offset"
-    )
-
+    // Simplified background to reduce lag and fix visibility issues in emulator
     val theme = LocalAppTheme.current
-    val colors = when (theme) {
-        AppTheme.NEON -> listOf(Color(0xFF000010), NeonPink.copy(0.15f), Color(0xFF000010))
-        AppTheme.LIGHT -> listOf(LightBg, Color(0xFFE8EAFF), LightBg)
-        else -> listOf(BgBlack, Purple400.copy(0.08f), Cyan400.copy(0.05f), BgBlack)
+    val bgColor = when (theme) {
+        AppTheme.NEON -> Color(0xFF000010)
+        AppTheme.LIGHT -> LightBg
+        else -> BgBlack
     }
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = colors,
-                    startY = offset * 800f,
-                    endY = (offset + 1f) * 800f
-                )
-            )
+            .background(bgColor)
     )
 }

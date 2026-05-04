@@ -73,7 +73,6 @@ fun BunnyVPNApp(viewModel: MainViewModel) {
         Screen.Servers.route,
         Screen.Stats.route,
         Screen.Browser.route,
-        Screen.Chat.route,
         Screen.Profile.route,
         Screen.Settings.route
     )
@@ -157,10 +156,6 @@ fun BunnyVPNApp(viewModel: MainViewModel) {
 
             composable(Screen.Browser.route) {
                 BrowserScreen()
-            }
-
-            composable(Screen.Chat.route) {
-                ChatScreen()
             }
 
             composable(Screen.Servers.route) {

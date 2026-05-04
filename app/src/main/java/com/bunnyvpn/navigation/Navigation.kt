@@ -14,7 +14,6 @@ sealed class Screen(val route: String) {
     object Profile : Screen("profile")
     object Settings : Screen("settings")
     object Browser : Screen("browser")
-    object Chat : Screen("chat")
 }
 
 data class BottomNavItem(
@@ -28,7 +27,6 @@ val bottomNavItems = listOf(
     BottomNavItem(Screen.Servers, "Servers", Icons.Filled.Public),
     BottomNavItem(Screen.Stats, "Stats", Icons.Filled.BarChart),
     BottomNavItem(Screen.Browser, "Browser", Icons.Filled.Language),
-    BottomNavItem(Screen.Chat, "AI Chat", Icons.Filled.AutoAwesome),
     BottomNavItem(Screen.Profile, "Profile", Icons.Filled.Person),
     BottomNavItem(Screen.Settings, "Settings", Icons.Filled.Settings)
 )

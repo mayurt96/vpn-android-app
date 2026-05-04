@@ -264,7 +264,7 @@ fun VpnTextField(
                 IconButton(onClick = { onTogglePassword?.invoke() }) {
                     Icon(
                         if (passwordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                        contentDescription = null,
+                        contentDescription = if (passwordVisible) "Hide password" else "Show password",
                         tint = TextSecondary
                     )
                 }

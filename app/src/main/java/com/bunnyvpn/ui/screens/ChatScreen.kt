@@ -57,37 +57,33 @@ fun ChatScreen() {
 
         scope.launch(Dispatchers.IO) {
             try {
-                val apiKey = "AIzaSyCoRWTlqts3Mw6Arfmj8NS7GaUNNBm0fKc"
+                val apiKey = "3edd68ac1d75457796a7a6cc70a951f8.6mKFeVnl4tJ2RuG5"
 
-                // Build Gemini body - Filter out previous error messages to avoid confusing the API
-                val contents = JSONArray()
+                val messagesArray = JSONArray()
                 messages.filter { !it.content.startsWith("API Error:") && !it.content.startsWith("Network Error:") }
                     .forEach { msg ->
-                        val contentObj = JSONObject()
-                        // User role is "user", assistant role is "model" in Gemini API
-                        contentObj.put("role", if (msg.role == "user") "user" else "model")
-                        val parts = JSONArray()
-                        parts.put(JSONObject().put("text", msg.content))
-                        contentObj.put("parts", parts)
-                        contents.put(contentObj)
+                        val msgObj = JSONObject()
+                        msgObj.put("role", if (msg.role == "user") "user" else "assistant")
+                        msgObj.put("content", msg.content)
+                        messagesArray.put(msgObj)
                     }
 
-                // If contents is empty (e.g. all were errors), don't send
-                if (contents.length() == 0) {
+                if (messagesArray.length() == 0) {
                     withContext(Dispatchers.Main) { isLoading = false }
                     return@launch
                 }
 
                 val body = JSONObject().apply {
-                    put("contents", contents)
+                    put("model", "glm-4")
+                    put("messages", messagesArray)
                 }.toString()
 
-                // Try gemini-1.5-flash with v1beta
-                val url = URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey")
+                val url = URL("https://open.bigmodel.cn/api/paas/v4/chat/completions")
                 val conn = url.openConnection() as HttpURLConnection
                 conn.apply {
                     requestMethod = "POST"
                     setRequestProperty("Content-Type", "application/json")
+                    setRequestProperty("Authorization", "Bearer $apiKey")
                     doOutput = true
                     connectTimeout = 30000
                     readTimeout = 30000
@@ -104,19 +100,16 @@ fun ChatScreen() {
 
                 if (responseCode == 200) {
                     val json = JSONObject(response)
-                    val reply = json.getJSONArray("candidates")
+                    val reply = json.getJSONArray("choices")
                         .getJSONObject(0)
-                        .getJSONObject("content")
-                        .getJSONArray("parts")
-                        .getJSONObject(0)
-                        .getString("text")
+                        .getJSONObject("message")
+                        .getString("content")
 
                     withContext(Dispatchers.Main) {
                         messages.add(ChatMessage("assistant", reply))
                         isLoading = false
                     }
                 } else {
-                    // Try to parse error message from JSON if possible
                     val errorMsg = try {
                         val errJson = JSONObject(response)
                         errJson.optJSONObject("error")?.optString("message") ?: response
@@ -167,7 +160,7 @@ fun ChatScreen() {
                     Column {
                         Text("BunnyAI", fontWeight = FontWeight.Bold,
                             color = TextPrimary, fontSize = 16.sp)
-                        Text("Powered by Gemini", color = TextSecondary, fontSize = 11.sp)
+                        Text("Online Chat Assistant", color = TextSecondary, fontSize = 11.sp)
                     }
 
                     Spacer(Modifier.weight(1f))
@@ -224,13 +217,13 @@ fun ChatScreen() {
                                         .clip(RoundedCornerShape(20.dp))
                                         .background(GlassWhite)
                                         .border(1.dp, GlassBorder, RoundedCornerShape(20.dp))
-                                        .padding(horizontal = 16.dp, vertical = 8.dp)
                                         .clickable { 
                                             // Extract text safely after emoji/space
                                             val hintText = hint.split(" ", limit = 2).lastOrNull() ?: hint
                                             input = hintText
                                             sendMessage()
                                         }
+                                        .padding(horizontal = 16.dp, vertical = 8.dp)
                                 ) {
                                     Text(hint, color = TextSecondary, fontSize = 13.sp)
                                 }
@@ -289,12 +282,16 @@ fun ChatScreen() {
                                 Brush.linearGradient(listOf(GlassWhite, GlassWhite)),
                             CircleShape
                         )
-                        .clickable { sendMessage() },
+                        .clickable(
+                            enabled = input.isNotEmpty() && !isLoading,
+                            onClickLabel = "Send message",
+                            onClick = { sendMessage() }
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Filled.Send,
-                        contentDescription = null,
+                        contentDescription = "Send message",
                         tint = if (input.isNotEmpty() && !isLoading) Color.White else TextMuted,
                         modifier = Modifier.size(20.dp)
                     )
